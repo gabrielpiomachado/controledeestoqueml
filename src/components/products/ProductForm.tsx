@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useInventory } from "@/contexts/InventoryContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,13 +21,27 @@ interface ProductFormProps {
 export function ProductForm({ open, onOpenChange, editProduct }: ProductFormProps) {
   const { addProduct, updateProduct } = useInventory();
   const [formData, setFormData] = useState({
-    sku: editProduct?.sku || "",
-    ean: editProduct?.ean || "",
-    category: editProduct?.category || "",
-    cost: editProduct?.cost?.toString() || "",
-    link: editProduct?.link || "",
+    sku: "",
+    ean: "",
+    category: "",
+    cost: "",
+    link: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Sync form data when editProduct changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        sku: editProduct?.sku || "",
+        ean: editProduct?.ean || "",
+        category: editProduct?.category || "",
+        cost: editProduct?.cost?.toString() || "",
+        link: editProduct?.link || "",
+      });
+      setErrors({});
+    }
+  }, [open, editProduct]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
