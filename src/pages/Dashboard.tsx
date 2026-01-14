@@ -43,7 +43,14 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-8">
+        <StatCard
+          title="Valor Investido"
+          value={formatCurrency(stats.totalInvested)}
+          subtitle="Total em entradas"
+          icon={ArrowDownToLine}
+          trend="neutral"
+        />
         <StatCard
           title="Valor em Estoque"
           value={formatCurrency(stats.totalInventoryValue)}

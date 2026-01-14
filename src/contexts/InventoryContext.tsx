@@ -108,6 +108,11 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   // Calculate stats
   const stats: DashboardStats = React.useMemo(() => {
+    // Total invested = sum of (cost * quantity) for all stock entries
+    const totalInvested = stockEntries.reduce((sum, entry) => {
+      const product = products.find(p => p.sku === entry.sku);
+      return sum + (product ? product.cost * entry.quantity : 0);
+    }, 0);
     const totalInventoryValue = products.reduce((sum, p) => sum + p.cost * p.stock, 0);
     const totalSales = sales.reduce((sum, s) => sum + s.salePrice * s.quantity, 0);
     const totalProfit = sales.reduce((sum, s) => sum + s.netProfit, 0);
@@ -117,6 +122,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     const lowStockProducts = products.filter(p => p.stock <= 5).length;
     
     return {
+      totalInvested,
       totalInventoryValue,
       totalSales,
       totalProfit,
@@ -124,7 +130,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       totalProducts: products.length,
       lowStockProducts,
     };
-  }, [products, sales]);
+  }, [products, stockEntries, sales]);
 
   const getProductBySku = useCallback((sku: string) => {
     return products.find(p => p.sku === sku);

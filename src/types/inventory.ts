@@ -35,6 +35,7 @@ export interface Sale {
 }
 
 export interface DashboardStats {
+  totalInvested: number;
   totalInventoryValue: number;
   totalSales: number;
   totalProfit: number;
