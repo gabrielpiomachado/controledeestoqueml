@@ -16,9 +16,11 @@ interface InventoryContextType {
   
   // Stock operations
   addStockEntry: (entry: Omit<StockEntry, "id" | "createdAt">) => boolean;
+  deleteStockEntry: (id: string) => boolean;
   
   // Sale operations
   addSale: (sale: Omit<Sale, "id" | "costAtSale" | "netProfit" | "margin" | "createdAt">) => { success: boolean; error?: string };
+  deleteSale: (id: string) => boolean;
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -248,6 +250,46 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, [products, toast]);
 
+  const deleteStockEntry = useCallback((id: string): boolean => {
+    const entry = stockEntries.find(e => e.id === id);
+    if (!entry) {
+      toast({
+        title: "Erro",
+        description: "Entrada não encontrada",
+        variant: "destructive",
+      });
+      return false;
+    }
+    
+    const product = products.find(p => p.sku === entry.sku);
+    if (product && product.stock < entry.quantity) {
+      toast({
+        title: "Erro",
+        description: `Não é possível excluir. O estoque atual (${product.stock}) é menor que a quantidade da entrada (${entry.quantity})`,
+        variant: "destructive",
+      });
+      return false;
+    }
+    
+    // Remove entry
+    setStockEntries(prev => prev.filter(e => e.id !== id));
+    
+    // Update product stock
+    if (product) {
+      setProducts(prev => prev.map(p => 
+        p.sku === entry.sku
+          ? { ...p, stock: p.stock - entry.quantity, updatedAt: new Date() }
+          : p
+      ));
+    }
+    
+    toast({
+      title: "Sucesso",
+      description: "Entrada de estoque excluída",
+    });
+    return true;
+  }, [stockEntries, products, toast]);
+
   const addSale = useCallback((sale: Omit<Sale, "id" | "costAtSale" | "netProfit" | "margin" | "createdAt">): { success: boolean; error?: string } => {
     if (sale.quantity <= 0) {
       return { success: false, error: "Quantidade deve ser maior que zero" };
@@ -300,6 +342,34 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [products, toast]);
 
+  const deleteSale = useCallback((id: string): boolean => {
+    const sale = sales.find(s => s.id === id);
+    if (!sale) {
+      toast({
+        title: "Erro",
+        description: "Venda não encontrada",
+        variant: "destructive",
+      });
+      return false;
+    }
+    
+    // Remove sale
+    setSales(prev => prev.filter(s => s.id !== id));
+    
+    // Restore product stock
+    setProducts(prev => prev.map(p => 
+      p.sku === sale.sku
+        ? { ...p, stock: p.stock + sale.quantity, updatedAt: new Date() }
+        : p
+    ));
+    
+    toast({
+      title: "Sucesso",
+      description: "Venda excluída e estoque restaurado",
+    });
+    return true;
+  }, [sales, toast]);
+
   return (
     <InventoryContext.Provider
       value={{
@@ -312,7 +382,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         deleteProduct,
         getProductBySku,
         addStockEntry,
+        deleteStockEntry,
         addSale,
+        deleteSale,
       }}
     >
       {children}
