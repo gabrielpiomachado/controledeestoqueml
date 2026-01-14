@@ -19,13 +19,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, ShoppingCart } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Plus, Search, ShoppingCart, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MARKETPLACES } from "@/types/inventory";
 
 export default function Sales() {
-  const { sales } = useInventory();
+  const { sales, deleteSale } = useInventory();
   const [search, setSearch] = useState("");
   const [marketplaceFilter, setMarketplaceFilter] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
@@ -131,12 +142,13 @@ export default function Sales() {
                 <TableHead className="text-right hidden md:table-cell">Taxas</TableHead>
                 <TableHead className="text-right">Lucro</TableHead>
                 <TableHead className="text-right hidden lg:table-cell">Margem</TableHead>
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredSales.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
+                  <TableCell colSpan={10} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <ShoppingCart className="h-8 w-8" />
                       <p>{search || marketplaceFilter !== "all" ? "Nenhuma venda encontrada" : "Nenhuma venda registrada"}</p>
@@ -186,6 +198,29 @@ export default function Sales() {
                       >
                         {formatPercent(sale.margin)}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir venda?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação não pode ser desfeita. O estoque será restaurado em {sale.quantity} unidade(s).
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteSale(sale.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))
