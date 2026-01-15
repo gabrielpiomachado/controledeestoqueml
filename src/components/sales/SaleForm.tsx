@@ -97,8 +97,10 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
     
     if (!validate()) return;
 
+    // Parse date parts to avoid timezone issues
+    const [year, month, day] = formData.date.split('-').map(Number);
     const result = addSale({
-      date: new Date(formData.date),
+      date: new Date(year, month - 1, day),
       marketplace: formData.marketplace,
       sku: formData.sku,
       quantity: parseInt(formData.quantity),

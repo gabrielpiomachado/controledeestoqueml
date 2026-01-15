@@ -57,8 +57,10 @@ export function StockEntryForm({ open, onOpenChange, preselectedSku }: StockEntr
     
     if (!validate()) return;
 
+    // Parse date parts to avoid timezone issues
+    const [year, month, day] = formData.date.split('-').map(Number);
     const success = addStockEntry({
-      date: new Date(formData.date),
+      date: new Date(year, month - 1, day),
       sku: formData.sku,
       quantity: parseInt(formData.quantity),
     });
