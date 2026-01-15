@@ -24,7 +24,6 @@ export function ProductForm({ open, onOpenChange, editProduct }: ProductFormProp
     sku: "",
     ean: "",
     category: "",
-    cost: "",
     link: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -36,7 +35,6 @@ export function ProductForm({ open, onOpenChange, editProduct }: ProductFormProp
         sku: editProduct?.sku || "",
         ean: editProduct?.ean || "",
         category: editProduct?.category || "",
-        cost: editProduct?.cost?.toString() || "",
         link: editProduct?.link || "",
       });
       setErrors({});
@@ -48,10 +46,6 @@ export function ProductForm({ open, onOpenChange, editProduct }: ProductFormProp
     
     if (!formData.sku.trim()) {
       newErrors.sku = "SKU é obrigatório";
-    }
-    
-    if (!formData.cost || parseFloat(formData.cost) <= 0) {
-      newErrors.cost = "Custo deve ser maior que zero";
     }
     
     setErrors(newErrors);
@@ -67,7 +61,6 @@ export function ProductForm({ open, onOpenChange, editProduct }: ProductFormProp
       sku: formData.sku.trim(),
       ean: formData.ean.trim(),
       category: formData.category.trim(),
-      cost: parseFloat(formData.cost),
       link: formData.link.trim(),
     };
 
@@ -80,7 +73,7 @@ export function ProductForm({ open, onOpenChange, editProduct }: ProductFormProp
 
     if (success) {
       onOpenChange(false);
-      setFormData({ sku: "", ean: "", category: "", cost: "", link: "" });
+      setFormData({ sku: "", ean: "", category: "", link: "" });
       setErrors({});
     }
   };
@@ -139,29 +132,24 @@ export function ProductForm({ open, onOpenChange, editProduct }: ProductFormProp
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cost" className="flex items-center gap-1">
-              Custo <span className="text-destructive">*</span>
-            </Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                R$
-              </span>
-              <Input
-                id="cost"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.cost}
-                onChange={(e) => handleChange("cost", e.target.value)}
-                placeholder="0,00"
-                className={`pl-10 ${errors.cost ? "border-destructive" : ""}`}
-              />
+          {editProduct && (
+            <div className="space-y-2">
+              <Label>Custo Médio</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  R$
+                </span>
+                <Input
+                  value={editProduct.cost.toFixed(2)}
+                  disabled
+                  className="pl-10 bg-muted"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                O custo médio é calculado automaticamente com base nas entradas de estoque
+              </p>
             </div>
-            {errors.cost && (
-              <p className="text-xs text-destructive">{errors.cost}</p>
-            )}
-          </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="link">Link do Anúncio</Label>

@@ -30,6 +30,7 @@ export function StockEntryForm({ open, onOpenChange, preselectedSku }: StockEntr
     date: new Date().toISOString().split("T")[0],
     sku: preselectedSku || "",
     quantity: "",
+    cost: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -47,6 +48,10 @@ export function StockEntryForm({ open, onOpenChange, preselectedSku }: StockEntr
     if (!formData.quantity || parseInt(formData.quantity) <= 0) {
       newErrors.quantity = "Quantidade deve ser maior que zero";
     }
+
+    if (!formData.cost || parseFloat(formData.cost) <= 0) {
+      newErrors.cost = "Custo deve ser maior que zero";
+    }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -63,6 +68,7 @@ export function StockEntryForm({ open, onOpenChange, preselectedSku }: StockEntr
       date: new Date(year, month - 1, day),
       sku: formData.sku,
       quantity: parseInt(formData.quantity),
+      cost: parseFloat(formData.cost),
     });
 
     if (success) {
@@ -71,6 +77,7 @@ export function StockEntryForm({ open, onOpenChange, preselectedSku }: StockEntr
         date: new Date().toISOString().split("T")[0],
         sku: "",
         quantity: "",
+        cost: "",
       });
       setErrors({});
     }
@@ -138,22 +145,48 @@ export function StockEntryForm({ open, onOpenChange, preselectedSku }: StockEntr
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="quantity" className="flex items-center gap-1">
-              Quantidade <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="quantity"
-              type="number"
-              min="1"
-              value={formData.quantity}
-              onChange={(e) => handleChange("quantity", e.target.value)}
-              placeholder="0"
-              className={errors.quantity ? "border-destructive" : ""}
-            />
-            {errors.quantity && (
-              <p className="text-xs text-destructive">{errors.quantity}</p>
-            )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="quantity" className="flex items-center gap-1">
+                Quantidade <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="1"
+                value={formData.quantity}
+                onChange={(e) => handleChange("quantity", e.target.value)}
+                placeholder="0"
+                className={errors.quantity ? "border-destructive" : ""}
+              />
+              {errors.quantity && (
+                <p className="text-xs text-destructive">{errors.quantity}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cost" className="flex items-center gap-1">
+                Custo Unitário <span className="text-destructive">*</span>
+              </Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  R$
+                </span>
+                <Input
+                  id="cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.cost}
+                  onChange={(e) => handleChange("cost", e.target.value)}
+                  placeholder="0,00"
+                  className={`pl-10 ${errors.cost ? "border-destructive" : ""}`}
+                />
+              </div>
+              {errors.cost && (
+                <p className="text-xs text-destructive">{errors.cost}</p>
+              )}
+            </div>
           </div>
 
           <DialogFooter className="mt-6">
