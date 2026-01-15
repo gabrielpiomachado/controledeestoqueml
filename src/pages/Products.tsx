@@ -109,7 +109,7 @@ export default function Products() {
                 <TableHead>SKU</TableHead>
                 <TableHead className="hidden sm:table-cell">EAN</TableHead>
                 <TableHead>Categoria</TableHead>
-                <TableHead className="text-right">Custo</TableHead>
+                <TableHead className="text-right">Custo Médio</TableHead>
                 <TableHead className="text-right">Estoque</TableHead>
                 <TableHead className="text-right">Valor Total</TableHead>
                 <TableHead className="w-10"></TableHead>

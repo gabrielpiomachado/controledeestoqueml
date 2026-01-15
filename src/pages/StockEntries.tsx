@@ -79,13 +79,14 @@ export default function StockEntries() {
                 <TableHead>SKU</TableHead>
                 <TableHead className="hidden sm:table-cell">Categoria</TableHead>
                 <TableHead className="text-right">Quantidade</TableHead>
+                <TableHead className="text-right">Custo Unit.</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredEntries.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <ArrowDownToLine className="h-8 w-8" />
                       <p>{search ? "Nenhuma entrada encontrada" : "Nenhuma entrada registrada"}</p>
@@ -106,6 +107,9 @@ export default function StockEntries() {
                       <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-1 text-xs font-medium text-success">
                         +{entry.quantity}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(entry.cost)}
                     </TableCell>
                     <TableCell>
                       <AlertDialog>

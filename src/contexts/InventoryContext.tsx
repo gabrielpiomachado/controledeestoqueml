@@ -9,8 +9,8 @@ interface InventoryContextType {
   stats: DashboardStats;
   
   // Product operations
-  addProduct: (product: Omit<Product, "id" | "stock" | "createdAt" | "updatedAt">) => boolean;
-  updateProduct: (id: string, updates: Partial<Omit<Product, "id" | "stock" | "createdAt" | "updatedAt">>) => boolean;
+  addProduct: (product: Omit<Product, "id" | "stock" | "cost" | "createdAt" | "updatedAt">) => boolean;
+  updateProduct: (id: string, updates: Partial<Omit<Product, "id" | "stock" | "cost" | "createdAt" | "updatedAt">>) => boolean;
   deleteProduct: (id: string) => boolean;
   getProductBySku: (sku: string) => Product | undefined;
   
@@ -110,8 +110,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const stats: DashboardStats = React.useMemo(() => {
     // Total invested = sum of (cost * quantity) for all stock entries
     const totalInvested = stockEntries.reduce((sum, entry) => {
-      const product = products.find(p => p.sku === entry.sku);
-      return sum + (product ? product.cost * entry.quantity : 0);
+      return sum + entry.cost * entry.quantity;
     }, 0);
     const totalInventoryValue = products.reduce((sum, p) => sum + p.cost * p.stock, 0);
     const totalSales = sales.reduce((sum, s) => sum + s.salePrice * s.quantity, 0);
@@ -136,7 +135,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     return products.find(p => p.sku === sku);
   }, [products]);
 
-  const addProduct = useCallback((product: Omit<Product, "id" | "stock" | "createdAt" | "updatedAt">): boolean => {
+  const addProduct = useCallback((product: Omit<Product, "id" | "stock" | "cost" | "createdAt" | "updatedAt">): boolean => {
     // Validate SKU uniqueness
     if (products.some(p => p.sku === product.sku)) {
       toast({
@@ -151,6 +150,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       ...product,
       id: generateId(),
       stock: 0,
+      cost: 0, // Will be calculated from stock entries
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -163,7 +163,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, [products, toast]);
 
-  const updateProduct = useCallback((id: string, updates: Partial<Omit<Product, "id" | "stock" | "createdAt" | "updatedAt">>): boolean => {
+  const updateProduct = useCallback((id: string, updates: Partial<Omit<Product, "id" | "stock" | "cost" | "createdAt" | "updatedAt">>): boolean => {
     // Check SKU uniqueness if updating SKU
     if (updates.sku) {
       const existingWithSku = products.find(p => p.sku === updates.sku && p.id !== id);
@@ -242,10 +242,18 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     
     setStockEntries(prev => [...prev, newEntry]);
     
-    // Update product stock
+    // Calculate new weighted average cost
+    const currentTotalValue = product.cost * product.stock;
+    const newTotalValue = entry.cost * entry.quantity;
+    const newTotalStock = product.stock + entry.quantity;
+    const newAverageCost = newTotalStock > 0 
+      ? (currentTotalValue + newTotalValue) / newTotalStock 
+      : 0;
+    
+    // Update product stock and average cost
     setProducts(prev => prev.map(p => 
       p.sku === entry.sku
-        ? { ...p, stock: p.stock + entry.quantity, updatedAt: new Date() }
+        ? { ...p, stock: newTotalStock, cost: newAverageCost, updatedAt: new Date() }
         : p
     ));
     
@@ -280,11 +288,25 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     // Remove entry
     setStockEntries(prev => prev.filter(e => e.id !== id));
     
-    // Update product stock
+    // Recalculate average cost from remaining entries
     if (product) {
+      const remainingEntries = stockEntries.filter(e => e.sku === entry.sku && e.id !== id);
+      const totalRemainingValue = remainingEntries.reduce((sum, e) => sum + e.cost * e.quantity, 0);
+      const totalRemainingQuantity = remainingEntries.reduce((sum, e) => sum + e.quantity, 0);
+      
+      // Subtract sold quantities to get remaining stock
+      const soldQuantity = sales
+        .filter(s => s.sku === entry.sku)
+        .reduce((sum, s) => sum + s.quantity, 0);
+      
+      const newStock = product.stock - entry.quantity;
+      const newAverageCost = totalRemainingQuantity > soldQuantity 
+        ? totalRemainingValue / totalRemainingQuantity
+        : 0;
+      
       setProducts(prev => prev.map(p => 
         p.sku === entry.sku
-          ? { ...p, stock: p.stock - entry.quantity, updatedAt: new Date() }
+          ? { ...p, stock: newStock, cost: newAverageCost, updatedAt: new Date() }
           : p
       ));
     }
@@ -294,7 +316,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       description: "Entrada de estoque excluída",
     });
     return true;
-  }, [stockEntries, products, toast]);
+  }, [stockEntries, products, sales, toast]);
 
   const addSale = useCallback((sale: Omit<Sale, "id" | "costAtSale" | "netProfit" | "margin" | "createdAt">): { success: boolean; error?: string } => {
     if (sale.quantity <= 0) {

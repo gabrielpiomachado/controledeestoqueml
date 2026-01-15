@@ -3,7 +3,7 @@ export interface Product {
   sku: string;
   ean: string;
   category: string;
-  cost: number;
+  cost: number; // Calculated average cost
   stock: number;
   link: string;
   createdAt: Date;
@@ -15,6 +15,7 @@ export interface StockEntry {
   date: Date;
   sku: string;
   quantity: number;
+  cost: number; // Unit cost at time of entry
   createdAt: Date;
 }
 
