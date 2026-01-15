@@ -49,12 +49,13 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
 
     const quantity = parseInt(formData.quantity) || 0;
     const salePrice = parseFloat(formData.salePrice) || 0;
-    const platformFee = parseFloat(formData.platformFee) || 0;
+    const platformFeePercent = parseFloat(formData.platformFee) || 0;
     const shipping = parseFloat(formData.shipping) || 0;
     const cost = selectedProduct.cost;
 
-    const netProfit = (salePrice - cost) * quantity - platformFee - shipping;
     const totalRevenue = salePrice * quantity;
+    const platformFeeValue = (platformFeePercent / 100) * totalRevenue;
+    const netProfit = (salePrice - cost) * quantity - platformFeeValue - shipping;
     const margin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
     return {
@@ -105,7 +106,7 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
       sku: formData.sku,
       quantity: parseInt(formData.quantity),
       salePrice: parseFloat(formData.salePrice),
-      platformFee: parseFloat(formData.platformFee) || 0,
+      platformFee: ((parseFloat(formData.platformFee) || 0) / 100) * parseFloat(formData.salePrice) * parseInt(formData.quantity),
       shipping: parseFloat(formData.shipping) || 0,
     });
 
@@ -266,21 +267,22 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="platformFee">Taxa da Plataforma</Label>
+              <Label htmlFor="platformFee">Taxa da Plataforma (%)</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  R$
-                </span>
                 <Input
                   id="platformFee"
                   type="number"
-                  step="0.01"
+                  step="0.1"
                   min="0"
+                  max="100"
                   value={formData.platformFee}
                   onChange={(e) => handleChange("platformFee", e.target.value)}
-                  placeholder="0,00"
-                  className="pl-10"
+                  placeholder="0"
+                  className="pr-8"
                 />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  %
+                </span>
               </div>
             </div>
 
