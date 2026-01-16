@@ -28,6 +28,7 @@ export interface Sale {
   salePrice: number;
   platformFee: number;
   shipping: number;
+  additionalCost: number; // Optional additional cost that impacts profit/margin
   // Frozen values at time of sale
   costAtSale: number;
   netProfit: number;

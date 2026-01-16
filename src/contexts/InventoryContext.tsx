@@ -19,7 +19,7 @@ interface InventoryContextType {
   deleteStockEntry: (id: string) => boolean;
   
   // Sale operations
-  addSale: (sale: Omit<Sale, "id" | "costAtSale" | "netProfit" | "margin" | "createdAt">) => { success: boolean; error?: string };
+  addSale: (sale: Omit<Sale, "id" | "costAtSale" | "netProfit" | "margin" | "createdAt"> & { additionalCost?: number }) => { success: boolean; error?: string };
   deleteSale: (id: string) => boolean;
 }
 
@@ -40,9 +40,10 @@ function calculateNetProfit(
   cost: number,
   quantity: number,
   platformFee: number,
-  shipping: number
+  shipping: number,
+  additionalCost: number
 ): number {
-  return (salePrice - cost) * quantity - platformFee - shipping;
+  return (salePrice - cost) * quantity - platformFee - shipping - additionalCost;
 }
 
 function calculateMargin(netProfit: number, salePrice: number, quantity: number): number {
@@ -336,12 +337,14 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     }
     
     const costAtSale = product.cost;
+    const additionalCost = sale.additionalCost || 0;
     const netProfit = calculateNetProfit(
       sale.salePrice,
       costAtSale,
       sale.quantity,
       sale.platformFee,
-      sale.shipping
+      sale.shipping,
+      additionalCost
     );
     const margin = calculateMargin(netProfit, sale.salePrice, sale.quantity);
     
@@ -349,6 +352,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       ...sale,
       id: generateId(),
       costAtSale,
+      additionalCost,
       netProfit,
       margin,
       createdAt: new Date(),

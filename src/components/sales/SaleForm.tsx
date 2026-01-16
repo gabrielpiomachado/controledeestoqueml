@@ -35,6 +35,7 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
     salePrice: "",
     platformFee: "",
     shipping: "",
+    additionalCost: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [stockError, setStockError] = useState<string | null>(null);
@@ -51,11 +52,12 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
     const salePrice = parseFloat(formData.salePrice) || 0;
     const platformFeePercent = parseFloat(formData.platformFee) || 0;
     const shipping = parseFloat(formData.shipping) || 0;
+    const additionalCost = parseFloat(formData.additionalCost) || 0;
     const cost = selectedProduct.cost;
 
     const totalRevenue = salePrice * quantity;
     const platformFeeValue = (platformFeePercent / 100) * totalRevenue;
-    const netProfit = (salePrice - cost) * quantity - platformFeeValue - shipping;
+    const netProfit = (salePrice - cost) * quantity - platformFeeValue - shipping - additionalCost;
     const margin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
     return {
@@ -108,6 +110,7 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
       salePrice: parseFloat(formData.salePrice),
       platformFee: ((parseFloat(formData.platformFee) || 0) / 100) * parseFloat(formData.salePrice) * parseInt(formData.quantity),
       shipping: parseFloat(formData.shipping) || 0,
+      additionalCost: parseFloat(formData.additionalCost) || 0,
     });
 
     if (result.success) {
@@ -120,6 +123,7 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
         salePrice: "",
         platformFee: "",
         shipping: "",
+        additionalCost: "",
       });
       setErrors({});
     } else {
@@ -265,7 +269,7 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="platformFee">Taxa da Plataforma (%)</Label>
               <div className="relative">
@@ -299,6 +303,25 @@ export function SaleForm({ open, onOpenChange }: SaleFormProps) {
                   min="0"
                   value={formData.shipping}
                   onChange={(e) => handleChange("shipping", e.target.value)}
+                  placeholder="0,00"
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="additionalCost">Custo Adicional</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  R$
+                </span>
+                <Input
+                  id="additionalCost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.additionalCost}
+                  onChange={(e) => handleChange("additionalCost", e.target.value)}
                   placeholder="0,00"
                   className="pl-10"
                 />
