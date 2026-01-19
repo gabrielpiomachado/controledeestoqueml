@@ -4,6 +4,7 @@ import {
   Package, 
   ArrowDownToLine, 
   ShoppingCart,
+  Calculator,
   Menu,
   X
 } from "lucide-react";
@@ -15,6 +16,7 @@ const navigation = [
   { name: "Produtos", href: "/produtos", icon: Package },
   { name: "Entradas", href: "/entradas", icon: ArrowDownToLine },
   { name: "Vendas", href: "/vendas", icon: ShoppingCart },
+  { name: "Calculadora", href: "/calculadora", icon: Calculator },
 ];
 
 export function Sidebar() {
