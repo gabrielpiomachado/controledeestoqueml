@@ -1,12 +1,15 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { Product, StockEntry, Sale, DashboardStats } from "@/types/inventory";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthContext } from "@/contexts/AuthContext";
+import * as firestoreService from "@/services/firestoreService";
 
 interface InventoryContextType {
   products: Product[];
   stockEntries: StockEntry[];
   sales: Sale[];
   stats: DashboardStats;
+  loading: boolean;
   
   // Product operations
   addProduct: (product: Omit<Product, "id" | "stock" | "cost" | "createdAt" | "updatedAt">) => boolean;
@@ -24,12 +27,6 @@ interface InventoryContextType {
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
-
-const STORAGE_KEYS = {
-  products: "inventory_products",
-  stockEntries: "inventory_stock_entries",
-  sales: "inventory_sales",
-};
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -54,58 +51,70 @@ function calculateMargin(netProfit: number, salePrice: number, quantity: number)
 
 export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
+  const { user } = useAuthContext();
   
-  const [products, setProducts] = useState<Product[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.products);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map((p: Product) => ({
-        ...p,
-        createdAt: new Date(p.createdAt),
-        updatedAt: new Date(p.updatedAt),
-      }));
-    }
-    return [];
-  });
-  
-  const [stockEntries, setStockEntries] = useState<StockEntry[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.stockEntries);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map((e: StockEntry) => ({
-        ...e,
-        date: new Date(e.date),
-        createdAt: new Date(e.createdAt),
-      }));
-    }
-    return [];
-  });
-  
-  const [sales, setSales] = useState<Sale[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.sales);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map((s: Sale) => ({
-        ...s,
-        date: new Date(s.date),
-        createdAt: new Date(s.createdAt),
-      }));
-    }
-    return [];
-  });
+  const [products, setProducts] = useState<Product[]>([]);
+  const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Persist to localStorage
+  // Load data from Firestore only when user is authenticated
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
-  }, [products]);
-  
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.stockEntries, JSON.stringify(stockEntries));
-  }, [stockEntries]);
-  
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.sales, JSON.stringify(sales));
-  }, [sales]);
+    if (!user) {
+      // Clear data when user logs out
+      setProducts([]);
+      setStockEntries([]);
+      setSales([]);
+      return;
+    }
+
+    setLoading(true);
+
+    // Subscribe to real-time updates
+    const unsubscribeProducts = firestoreService.subscribeToUserProducts(
+      user.uid,
+      (products) => {
+        setProducts(products);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Erro ao carregar produtos:', error);
+        toast({
+          title: "Erro",
+          description: "Falha ao carregar produtos",
+          variant: "destructive",
+        });
+        setLoading(false);
+      }
+    );
+
+    const unsubscribeStockEntries = firestoreService.subscribeToUserStockEntries(
+      user.uid,
+      (stockEntries) => {
+        setStockEntries(stockEntries);
+      },
+      (error) => {
+        console.error('Erro ao carregar entradas de estoque:', error);
+      }
+    );
+
+    const unsubscribeSales = firestoreService.subscribeToUserSales(
+      user.uid,
+      (sales) => {
+        setSales(sales);
+      },
+      (error) => {
+        console.error('Erro ao carregar vendas:', error);
+      }
+    );
+
+    // Cleanup subscriptions on unmount or user change
+    return () => {
+      unsubscribeProducts();
+      unsubscribeStockEntries();
+      unsubscribeSales();
+    };
+  }, [user, toast]);
 
   // Calculate stats
   const stats: DashboardStats = React.useMemo(() => {
@@ -137,6 +146,15 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   }, [products]);
 
   const addProduct = useCallback((product: Omit<Product, "id" | "stock" | "cost" | "createdAt" | "updatedAt">): boolean => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     // Validate SKU uniqueness
     if (products.some(p => p.sku === product.sku)) {
       toast({
@@ -147,24 +165,44 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     
-    const newProduct: Product = {
-      ...product,
-      id: generateId(),
-      stock: 0,
-      cost: 0, // Will be calculated from stock entries
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    firestoreService.addProduct(user.uid, product)
+      .then(id => {
+        const newProduct: Product = {
+          ...product,
+          id,
+          stock: 0,
+          cost: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        setProducts(prev => [...prev, newProduct]);
+        toast({
+          title: "Sucesso",
+          description: "Produto cadastrado com sucesso",
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        toast({
+          title: "Erro",
+          description: "Falha ao cadastrar produto",
+          variant: "destructive",
+        });
+      });
     
-    setProducts(prev => [...prev, newProduct]);
-    toast({
-      title: "Sucesso",
-      description: "Produto cadastrado com sucesso",
-    });
     return true;
-  }, [products, toast]);
+  }, [user, products, toast]);
 
   const updateProduct = useCallback((id: string, updates: Partial<Omit<Product, "id" | "stock" | "cost" | "createdAt" | "updatedAt">>): boolean => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     // Check SKU uniqueness if updating SKU
     if (updates.sku) {
       const existingWithSku = products.find(p => p.sku === updates.sku && p.id !== id);
@@ -178,19 +216,40 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       }
     }
     
-    setProducts(prev => prev.map(p => 
-      p.id === id 
-        ? { ...p, ...updates, updatedAt: new Date() }
-        : p
-    ));
-    toast({
-      title: "Sucesso",
-      description: "Produto atualizado com sucesso",
-    });
+    firestoreService.updateProduct(id, updates)
+      .then(() => {
+        setProducts(prev => prev.map(p => 
+          p.id === id 
+            ? { ...p, ...updates, updatedAt: new Date() }
+            : p
+        ));
+        toast({
+          title: "Sucesso",
+          description: "Produto atualizado com sucesso",
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        toast({
+          title: "Erro",
+          description: "Falha ao atualizar produto",
+          variant: "destructive",
+        });
+      });
+
     return true;
-  }, [products, toast]);
+  }, [user, products, toast]);
 
   const deleteProduct = useCallback((id: string): boolean => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     const product = products.find(p => p.id === id);
     if (!product) return false;
     
@@ -207,15 +266,36 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     
-    setProducts(prev => prev.filter(p => p.id !== id));
-    toast({
-      title: "Sucesso",
-      description: "Produto excluído com sucesso",
-    });
+    firestoreService.deleteProduct(id)
+      .then(() => {
+        setProducts(prev => prev.filter(p => p.id !== id));
+        toast({
+          title: "Sucesso",
+          description: "Produto excluído com sucesso",
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        toast({
+          title: "Erro",
+          description: "Falha ao excluir produto",
+          variant: "destructive",
+        });
+      });
+
     return true;
-  }, [products, stockEntries, sales, toast]);
+  }, [user, products, stockEntries, sales, toast]);
 
   const addStockEntry = useCallback((entry: Omit<StockEntry, "id" | "createdAt">): boolean => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     if (entry.quantity <= 0) {
       toast({
         title: "Erro",
@@ -235,37 +315,71 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     
-    const newEntry: StockEntry = {
-      ...entry,
-      id: generateId(),
-      createdAt: new Date(),
-    };
+    firestoreService.addStockEntry(user.uid, entry)
+      .then(id => {
+        const newEntry: StockEntry = {
+          ...entry,
+          id,
+          createdAt: new Date(),
+        };
+        
+        setStockEntries(prev => [...prev, newEntry]);
+        
+        // Calculate new weighted average cost
+        const currentTotalValue = product.cost * product.stock;
+        const newTotalValue = entry.cost * entry.quantity;
+        const newTotalStock = product.stock + entry.quantity;
+        const newAverageCost = newTotalStock > 0 
+          ? (currentTotalValue + newTotalValue) / newTotalStock 
+          : 0;
+        
+        // Update product stock and average cost
+        firestoreService.updateProduct(product.id, {
+          stock: newTotalStock,
+          cost: newAverageCost,
+        })
+          .then(() => {
+            setProducts(prev => prev.map(p => 
+              p.sku === entry.sku
+                ? { ...p, stock: newTotalStock, cost: newAverageCost, updatedAt: new Date() }
+                : p
+            ));
+            toast({
+              title: "Sucesso",
+              description: `${entry.quantity} unidades adicionadas ao estoque`,
+            });
+          })
+          .catch(err => {
+            console.error(err);
+            toast({
+              title: "Erro",
+              description: "Falha ao atualizar estoque",
+              variant: "destructive",
+            });
+          });
+      })
+      .catch(err => {
+        console.error(err);
+        toast({
+          title: "Erro",
+          description: "Falha ao adicionar entrada de estoque",
+          variant: "destructive",
+        });
+      });
     
-    setStockEntries(prev => [...prev, newEntry]);
-    
-    // Calculate new weighted average cost
-    const currentTotalValue = product.cost * product.stock;
-    const newTotalValue = entry.cost * entry.quantity;
-    const newTotalStock = product.stock + entry.quantity;
-    const newAverageCost = newTotalStock > 0 
-      ? (currentTotalValue + newTotalValue) / newTotalStock 
-      : 0;
-    
-    // Update product stock and average cost
-    setProducts(prev => prev.map(p => 
-      p.sku === entry.sku
-        ? { ...p, stock: newTotalStock, cost: newAverageCost, updatedAt: new Date() }
-        : p
-    ));
-    
-    toast({
-      title: "Sucesso",
-      description: `${entry.quantity} unidades adicionadas ao estoque`,
-    });
     return true;
-  }, [products, toast]);
+  }, [user, products, toast]);
 
   const deleteStockEntry = useCallback((id: string): boolean => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     const entry = stockEntries.find(e => e.id === id);
     if (!entry) {
       toast({
@@ -286,40 +400,68 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     
-    // Remove entry
-    setStockEntries(prev => prev.filter(e => e.id !== id));
+    firestoreService.deleteStockEntry(id)
+      .then(() => {
+        setStockEntries(prev => prev.filter(e => e.id !== id));
+        
+        // Recalculate average cost from remaining entries
+        if (product) {
+          const remainingEntries = stockEntries.filter(e => e.sku === entry.sku && e.id !== id);
+          const totalRemainingValue = remainingEntries.reduce((sum, e) => sum + e.cost * e.quantity, 0);
+          const totalRemainingQuantity = remainingEntries.reduce((sum, e) => sum + e.quantity, 0);
+          
+          // Subtract sold quantities to get remaining stock
+          const soldQuantity = sales
+            .filter(s => s.sku === entry.sku)
+            .reduce((sum, s) => sum + s.quantity, 0);
+          
+          const newStock = product.stock - entry.quantity;
+          const newAverageCost = totalRemainingQuantity > soldQuantity 
+            ? totalRemainingValue / totalRemainingQuantity
+            : 0;
+          
+          firestoreService.updateProduct(product.id, {
+            stock: newStock,
+            cost: newAverageCost,
+          })
+            .then(() => {
+              setProducts(prev => prev.map(p => 
+                p.sku === entry.sku
+                  ? { ...p, stock: newStock, cost: newAverageCost, updatedAt: new Date() }
+                  : p
+              ));
+              toast({
+                title: "Sucesso",
+                description: "Entrada de estoque excluída",
+              });
+            })
+            .catch(err => {
+              console.error(err);
+              toast({
+                title: "Erro",
+                description: "Falha ao atualizar estoque",
+                variant: "destructive",
+              });
+            });
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        toast({
+          title: "Erro",
+          description: "Falha ao excluir entrada de estoque",
+          variant: "destructive",
+        });
+      });
     
-    // Recalculate average cost from remaining entries
-    if (product) {
-      const remainingEntries = stockEntries.filter(e => e.sku === entry.sku && e.id !== id);
-      const totalRemainingValue = remainingEntries.reduce((sum, e) => sum + e.cost * e.quantity, 0);
-      const totalRemainingQuantity = remainingEntries.reduce((sum, e) => sum + e.quantity, 0);
-      
-      // Subtract sold quantities to get remaining stock
-      const soldQuantity = sales
-        .filter(s => s.sku === entry.sku)
-        .reduce((sum, s) => sum + s.quantity, 0);
-      
-      const newStock = product.stock - entry.quantity;
-      const newAverageCost = totalRemainingQuantity > soldQuantity 
-        ? totalRemainingValue / totalRemainingQuantity
-        : 0;
-      
-      setProducts(prev => prev.map(p => 
-        p.sku === entry.sku
-          ? { ...p, stock: newStock, cost: newAverageCost, updatedAt: new Date() }
-          : p
-      ));
-    }
-    
-    toast({
-      title: "Sucesso",
-      description: "Entrada de estoque excluída",
-    });
     return true;
-  }, [stockEntries, products, sales, toast]);
+  }, [user, stockEntries, products, sales, toast]);
 
   const addSale = useCallback((sale: Omit<Sale, "id" | "costAtSale" | "netProfit" | "margin" | "createdAt">): { success: boolean; error?: string } => {
+    if (!user) {
+      return { success: false, error: "Usuário não autenticado" };
+    }
+
     if (sale.quantity <= 0) {
       return { success: false, error: "Quantidade deve ser maior que zero" };
     }
@@ -337,7 +479,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     }
     
     const costAtSale = product.cost;
-    const additionalCost = sale.additionalCost || 0;
+    const additionalCost = (sale as any).additionalCost || 0;
     const netProfit = calculateNetProfit(
       sale.salePrice,
       costAtSale,
@@ -348,33 +490,70 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     );
     const margin = calculateMargin(netProfit, sale.salePrice, sale.quantity);
     
-    const newSale: Sale = {
+    const saleWithCalculations: Omit<Sale, "id" | "createdAt"> = {
       ...sale,
-      id: generateId(),
       costAtSale,
       additionalCost,
       netProfit,
       margin,
-      createdAt: new Date(),
     };
+
+    firestoreService.addSale(user.uid, saleWithCalculations)
+      .then(id => {
+        const newSale: Sale = {
+          ...saleWithCalculations,
+          id,
+          createdAt: new Date(),
+        };
+        
+        setSales(prev => [...prev, newSale]);
+        
+        // Update product stock
+        firestoreService.updateProduct(product.id, {
+          stock: product.stock - sale.quantity,
+        })
+          .then(() => {
+            setProducts(prev => prev.map(p => 
+              p.sku === sale.sku
+                ? { ...p, stock: p.stock - sale.quantity, updatedAt: new Date() }
+                : p
+            ));
+            toast({
+              title: "Sucesso",
+              description: "Venda registrada com sucesso",
+            });
+          })
+          .catch(err => {
+            console.error(err);
+            toast({
+              title: "Erro",
+              description: "Falha ao atualizar estoque",
+              variant: "destructive",
+            });
+          });
+      })
+      .catch(err => {
+        console.error(err);
+        toast({
+          title: "Erro",
+          description: "Falha ao registrar venda",
+          variant: "destructive",
+        });
+      });
     
-    setSales(prev => [...prev, newSale]);
-    
-    // Update product stock
-    setProducts(prev => prev.map(p => 
-      p.sku === sale.sku
-        ? { ...p, stock: p.stock - sale.quantity, updatedAt: new Date() }
-        : p
-    ));
-    
-    toast({
-      title: "Sucesso",
-      description: "Venda registrada com sucesso",
-    });
     return { success: true };
-  }, [products, toast]);
+  }, [user, products, toast]);
 
   const deleteSale = useCallback((id: string): boolean => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     const sale = sales.find(s => s.id === id);
     if (!sale) {
       toast({
@@ -385,22 +564,46 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     
-    // Remove sale
-    setSales(prev => prev.filter(s => s.id !== id));
+    firestoreService.deleteSale(id)
+      .then(() => {
+        setSales(prev => prev.filter(s => s.id !== id));
+        
+        // Restore product stock
+        firestoreService.updateProduct(
+          products.find(p => p.sku === sale.sku)?.id || '',
+          { stock: (products.find(p => p.sku === sale.sku)?.stock || 0) + sale.quantity }
+        )
+          .then(() => {
+            setProducts(prev => prev.map(p => 
+              p.sku === sale.sku
+                ? { ...p, stock: p.stock + sale.quantity, updatedAt: new Date() }
+                : p
+            ));
+            toast({
+              title: "Sucesso",
+              description: "Venda excluída e estoque restaurado",
+            });
+          })
+          .catch(err => {
+            console.error(err);
+            toast({
+              title: "Erro",
+              description: "Falha ao restaurar estoque",
+              variant: "destructive",
+            });
+          });
+      })
+      .catch(err => {
+        console.error(err);
+        toast({
+          title: "Erro",
+          description: "Falha ao excluir venda",
+          variant: "destructive",
+        });
+      });
     
-    // Restore product stock
-    setProducts(prev => prev.map(p => 
-      p.sku === sale.sku
-        ? { ...p, stock: p.stock + sale.quantity, updatedAt: new Date() }
-        : p
-    ));
-    
-    toast({
-      title: "Sucesso",
-      description: "Venda excluída e estoque restaurado",
-    });
     return true;
-  }, [sales, toast]);
+  }, [user, sales, products, toast]);
 
   return (
     <InventoryContext.Provider
@@ -409,6 +612,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         stockEntries,
         sales,
         stats,
+        loading,
         addProduct,
         updateProduct,
         deleteProduct,
