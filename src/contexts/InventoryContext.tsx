@@ -188,16 +188,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     }
     
     firestoreService.addProduct(user.uid, product)
-      .then(id => {
-        const newProduct: Product = {
-          ...product,
-          id,
-          stock: 0,
-          cost: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        setProducts(prev => [...prev, newProduct]);
+      .then(() => {
         toast({
           title: "Sucesso",
           description: "Produto cadastrado com sucesso",
@@ -240,11 +231,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     
     firestoreService.updateProduct(user.uid, id, updates)
       .then(() => {
-        setProducts(prev => prev.map(p => 
-          p.id === id 
-            ? { ...p, ...updates, updatedAt: new Date() }
-            : p
-        ));
         toast({
           title: "Sucesso",
           description: "Produto atualizado com sucesso",
@@ -290,7 +276,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     
     firestoreService.deleteProduct(user.uid, id)
       .then(() => {
-        setProducts(prev => prev.filter(p => p.id !== id));
         toast({
           title: "Sucesso",
           description: "Produto excluído com sucesso",
@@ -338,15 +323,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     }
     
     firestoreService.addStockEntry(user.uid, entry)
-      .then(id => {
-        const newEntry: StockEntry = {
-          ...entry,
-          id,
-          createdAt: new Date(),
-        };
-        
-        setStockEntries(prev => [...prev, newEntry]);
-        
+      .then(() => {
         // Calculate new weighted average cost
         const currentTotalValue = product.cost * product.stock;
         const newTotalValue = entry.cost * entry.quantity;
@@ -360,11 +337,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           cost: newAverageCost,
         })
           .then(() => {
-            setProducts(prev => prev.map(p => 
-              p.sku === entry.sku
-                ? { ...p, stock: newTotalStock, cost: newAverageCost, updatedAt: new Date() }
-                : p
-            ));
             toast({
               title: "Sucesso",
               description: `${entry.quantity} unidades adicionadas ao estoque`,
@@ -423,8 +395,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     
     firestoreService.deleteStockEntry(user.uid, id)
       .then(() => {
-        setStockEntries(prev => prev.filter(e => e.id !== id));
-        
         // Recalculate average cost from remaining entries
         if (product) {
           const remainingEntries = stockEntries.filter(e => e.sku === entry.sku && e.id !== id);
@@ -446,11 +416,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
             cost: newAverageCost,
           })
             .then(() => {
-              setProducts(prev => prev.map(p => 
-                p.sku === entry.sku
-                  ? { ...p, stock: newStock, cost: newAverageCost, updatedAt: new Date() }
-                  : p
-              ));
               toast({
                 title: "Sucesso",
                 description: "Entrada de estoque excluída",
@@ -520,25 +485,12 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     };
 
     firestoreService.addSale(user.uid, saleWithCalculations)
-      .then(id => {
-        const newSale: Sale = {
-          ...saleWithCalculations,
-          id,
-          createdAt: new Date(),
-        };
-        
-        setSales(prev => [...prev, newSale]);
-        
+      .then(() => {
         // Update product stock
         firestoreService.updateProduct(user.uid, product.id, {
           stock: product.stock - sale.quantity,
         })
           .then(() => {
-            setProducts(prev => prev.map(p => 
-              p.sku === sale.sku
-                ? { ...p, stock: p.stock - sale.quantity, updatedAt: new Date() }
-                : p
-            ));
             toast({
               title: "Sucesso",
               description: "Venda registrada com sucesso",
@@ -587,8 +539,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     
     firestoreService.deleteSale(user.uid, id)
       .then(() => {
-        setSales(prev => prev.filter(s => s.id !== id));
-        
         // Restore product stock
         const product = products.find(p => p.sku === sale.sku);
         if (product) {
@@ -598,24 +548,19 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
             { stock: product.stock + sale.quantity }
           )
           .then(() => {
-              setProducts(prev => prev.map(p => 
-                p.sku === sale.sku
-                  ? { ...p, stock: p.stock + sale.quantity, updatedAt: new Date() }
-                  : p
-              ));
-              toast({
-                title: "Sucesso",
-                description: "Venda excluída e estoque restaurado",
-              });
-            })
-            .catch(err => {
-              console.error(err);
-              toast({
-                title: "Erro",
-                description: "Falha ao restaurar estoque",
-                variant: "destructive",
-              });
+            toast({
+              title: "Sucesso",
+              description: "Venda excluída e estoque restaurado",
             });
+          })
+          .catch(err => {
+            console.error(err);
+            toast({
+              title: "Erro",
+              description: "Falha ao restaurar estoque",
+              variant: "destructive",
+            });
+          });
         }
       })
       .catch(err => {
