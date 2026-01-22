@@ -617,9 +617,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
               });
             });
         }
-              variant: "destructive",
-            });
-          });
       })
       .catch(err => {
         console.error(err);
