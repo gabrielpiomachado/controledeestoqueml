@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User-specific data - nested structure
+    // users/{uid}/products/{document}
+    // users/{uid}/stockEntries/{document}
+    // users/{uid}/sales/{document}
+    
+    match /users/{uid} {
+      allow read, write: if request.auth.uid == uid;
+      
+      // Products collection
+      match /products/{document=**} {
+        allow read, write: if request.auth.uid == uid;
+      }
+      
+      // Stock Entries collection
+      match /stockEntries/{document=**} {
+        allow read, write: if request.auth.uid == uid;
+      }
+      
+      // Sales collection
+      match /sales/{document=**} {
+        allow read, write: if request.auth.uid == uid;
+      }
+    }
+  }
+}

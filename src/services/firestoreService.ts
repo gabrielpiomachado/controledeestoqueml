@@ -3,8 +3,6 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  query,
-  where,
   getDocs,
   onSnapshot,
   doc,
@@ -23,15 +21,26 @@ const COLLECTIONS = {
   SALES: 'sales',
 };
 
+// Helper to get user-specific collection path
+function getUserProductsPath(userId: string): string {
+  return `users/${userId}/products`;
+}
+
+function getUserStockEntriesPath(userId: string): string {
+  return `users/${userId}/stockEntries`;
+}
+
+function getUserSalesPath(userId: string): string {
+  return `users/${userId}/sales`;
+}
+
 // ============ PRODUCTS ============
 
 export async function loadUserProducts(userId: string): Promise<Product[]> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    const q = query(
-      collection(db, COLLECTIONS.PRODUCTS),
-      where('userId', '==', userId)
-    );
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(collection(db, getUserProductsPath(userId)));
     return snapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -51,10 +60,11 @@ export async function addProduct(
   userId: string,
   product: Omit<Product, 'id' | 'stock' | 'cost' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    const docRef = await addDoc(collection(db, COLLECTIONS.PRODUCTS), {
+    const docRef = await addDoc(collection(db, getUserProductsPath(userId)), {
       ...product,
-      userId,
       stock: 0,
       cost: 0,
       createdAt: Timestamp.now(),
@@ -68,11 +78,14 @@ export async function addProduct(
 }
 
 export async function updateProduct(
+  userId: string,
   productId: string,
   updates: Partial<Omit<Product, 'id' | 'stock' | 'cost' | 'createdAt'>>
 ): Promise<void> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    await updateDoc(doc(db, COLLECTIONS.PRODUCTS, productId), {
+    await updateDoc(doc(db, getUserProductsPath(userId), productId), {
       ...updates,
       updatedAt: Timestamp.now(),
     });
@@ -82,9 +95,11 @@ export async function updateProduct(
   }
 }
 
-export async function deleteProduct(productId: string): Promise<void> {
+export async function deleteProduct(userId: string, productId: string): Promise<void> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    await deleteDoc(doc(db, COLLECTIONS.PRODUCTS, productId));
+    await deleteDoc(doc(db, getUserProductsPath(userId), productId));
   } catch (error) {
     console.error('Erro ao deletar produto:', error);
     throw error;
@@ -94,12 +109,10 @@ export async function deleteProduct(productId: string): Promise<void> {
 // ============ STOCK ENTRIES ============
 
 export async function loadUserStockEntries(userId: string): Promise<StockEntry[]> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    const q = query(
-      collection(db, COLLECTIONS.STOCK_ENTRIES),
-      where('userId', '==', userId)
-    );
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(collection(db, getUserStockEntriesPath(userId)));
     return snapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -119,10 +132,11 @@ export async function addStockEntry(
   userId: string,
   entry: Omit<StockEntry, 'id' | 'createdAt'>
 ): Promise<string> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    const docRef = await addDoc(collection(db, COLLECTIONS.STOCK_ENTRIES), {
+    const docRef = await addDoc(collection(db, getUserStockEntriesPath(userId)), {
       ...entry,
-      userId,
       date: Timestamp.fromDate(entry.date),
       createdAt: Timestamp.now(),
     });
@@ -133,9 +147,11 @@ export async function addStockEntry(
   }
 }
 
-export async function deleteStockEntry(entryId: string): Promise<void> {
+export async function deleteStockEntry(userId: string, entryId: string): Promise<void> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    await deleteDoc(doc(db, COLLECTIONS.STOCK_ENTRIES, entryId));
+    await deleteDoc(doc(db, getUserStockEntriesPath(userId), entryId));
   } catch (error) {
     console.error('Erro ao deletar entrada de estoque:', error);
     throw error;
@@ -145,12 +161,10 @@ export async function deleteStockEntry(entryId: string): Promise<void> {
 // ============ SALES ============
 
 export async function loadUserSales(userId: string): Promise<Sale[]> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    const q = query(
-      collection(db, COLLECTIONS.SALES),
-      where('userId', '==', userId)
-    );
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(collection(db, getUserSalesPath(userId)));
     return snapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -170,10 +184,11 @@ export async function addSale(
   userId: string,
   sale: Omit<Sale, 'id' | 'createdAt'>
 ): Promise<string> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    const docRef = await addDoc(collection(db, COLLECTIONS.SALES), {
+    const docRef = await addDoc(collection(db, getUserSalesPath(userId)), {
       ...sale,
-      userId,
       date: Timestamp.fromDate(sale.date),
       createdAt: Timestamp.now(),
     });
@@ -184,9 +199,11 @@ export async function addSale(
   }
 }
 
-export async function deleteSale(saleId: string): Promise<void> {
+export async function deleteSale(userId: string, saleId: string): Promise<void> {
+  if (!userId) throw new Error('userId é obrigatório');
+  
   try {
-    await deleteDoc(doc(db, COLLECTIONS.SALES, saleId));
+    await deleteDoc(doc(db, getUserSalesPath(userId), saleId));
   } catch (error) {
     console.error('Erro ao deletar venda:', error);
     throw error;
@@ -222,13 +239,14 @@ export function subscribeToUserProducts(
   onUpdate: (products: Product[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(
-    collection(db, COLLECTIONS.PRODUCTS),
-    where('userId', '==', userId)
-  );
+  if (!userId) {
+    const error = new Error('userId é obrigatório para subscrever produtos');
+    onError?.(error);
+    return () => {};
+  }
 
   return onSnapshot(
-    q,
+    collection(db, getUserProductsPath(userId)),
     snapshot => {
       const products = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -253,13 +271,14 @@ export function subscribeToUserStockEntries(
   onUpdate: (entries: StockEntry[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(
-    collection(db, COLLECTIONS.STOCK_ENTRIES),
-    where('userId', '==', userId)
-  );
+  if (!userId) {
+    const error = new Error('userId é obrigatório para subscrever entradas de estoque');
+    onError?.(error);
+    return () => {};
+  }
 
   return onSnapshot(
-    q,
+    collection(db, getUserStockEntriesPath(userId)),
     snapshot => {
       const entries = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -284,13 +303,14 @@ export function subscribeToUserSales(
   onUpdate: (sales: Sale[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(
-    collection(db, COLLECTIONS.SALES),
-    where('userId', '==', userId)
-  );
+  if (!userId) {
+    const error = new Error('userId é obrigatório para subscrever vendas');
+    onError?.(error);
+    return () => {};
+  }
 
   return onSnapshot(
-    q,
+    collection(db, getUserSalesPath(userId)),
     snapshot => {
       const sales = snapshot.docs.map(doc => {
         const data = doc.data();

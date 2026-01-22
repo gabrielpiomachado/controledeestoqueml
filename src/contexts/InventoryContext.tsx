@@ -58,63 +58,85 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load data from Firestore only when user is authenticated
+  // Load data from Firestore only when user is authenticated and ready
   useEffect(() => {
-    if (!user) {
-      // Clear data when user logs out
+    // Only proceed if user is fully authenticated
+    if (!user || !user.uid) {
       setProducts([]);
       setStockEntries([]);
       setSales([]);
+      setLoading(false);
       return;
     }
 
     setLoading(true);
+    let mounted = true;
 
-    // Subscribe to real-time updates
-    const unsubscribeProducts = firestoreService.subscribeToUserProducts(
-      user.uid,
-      (products) => {
-        setProducts(products);
+    try {
+      // Subscribe to real-time updates using user.uid
+      const unsubscribeProducts = firestoreService.subscribeToUserProducts(
+        user.uid,
+        (products) => {
+          if (mounted) {
+            setProducts(products);
+          }
+        },
+        (error) => {
+          if (mounted) {
+            console.error('Erro ao carregar produtos:', error);
+            toast({
+              title: "Erro",
+              description: "Falha ao carregar produtos: " + error.message,
+              variant: "destructive",
+            });
+          }
+        }
+      );
+
+      const unsubscribeStockEntries = firestoreService.subscribeToUserStockEntries(
+        user.uid,
+        (stockEntries) => {
+          if (mounted) {
+            setStockEntries(stockEntries);
+          }
+        },
+        (error) => {
+          if (mounted) {
+            console.error('Erro ao carregar entradas de estoque:', error);
+          }
+        }
+      );
+
+      const unsubscribeSales = firestoreService.subscribeToUserSales(
+        user.uid,
+        (sales) => {
+          if (mounted) {
+            setSales(sales);
+            setLoading(false);
+          }
+        },
+        (error) => {
+          if (mounted) {
+            console.error('Erro ao carregar vendas:', error);
+            setLoading(false);
+          }
+        }
+      );
+
+      // Cleanup subscriptions on unmount or user change
+      return () => {
+        mounted = false;
+        unsubscribeProducts();
+        unsubscribeStockEntries();
+        unsubscribeSales();
+      };
+    } catch (error) {
+      if (mounted) {
+        console.error('Erro ao subscrever dados:', error);
         setLoading(false);
-      },
-      (error) => {
-        console.error('Erro ao carregar produtos:', error);
-        toast({
-          title: "Erro",
-          description: "Falha ao carregar produtos",
-          variant: "destructive",
-        });
-        setLoading(false);
       }
-    );
-
-    const unsubscribeStockEntries = firestoreService.subscribeToUserStockEntries(
-      user.uid,
-      (stockEntries) => {
-        setStockEntries(stockEntries);
-      },
-      (error) => {
-        console.error('Erro ao carregar entradas de estoque:', error);
-      }
-    );
-
-    const unsubscribeSales = firestoreService.subscribeToUserSales(
-      user.uid,
-      (sales) => {
-        setSales(sales);
-      },
-      (error) => {
-        console.error('Erro ao carregar vendas:', error);
-      }
-    );
-
-    // Cleanup subscriptions on unmount or user change
-    return () => {
-      unsubscribeProducts();
-      unsubscribeStockEntries();
-      unsubscribeSales();
-    };
-  }, [user, toast]);
+    }
+  }, [user?.uid, toast]); // Use user?.uid para detectar mudanças reais
 
   // Calculate stats
   const stats: DashboardStats = React.useMemo(() => {
@@ -216,7 +238,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       }
     }
     
-    firestoreService.updateProduct(id, updates)
+    firestoreService.updateProduct(user.uid, id, updates)
       .then(() => {
         setProducts(prev => prev.map(p => 
           p.id === id 
@@ -266,7 +288,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     
-    firestoreService.deleteProduct(id)
+    firestoreService.deleteProduct(user.uid, id)
       .then(() => {
         setProducts(prev => prev.filter(p => p.id !== id));
         toast({
@@ -333,8 +355,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           ? (currentTotalValue + newTotalValue) / newTotalStock 
           : 0;
         
-        // Update product stock and average cost
-        firestoreService.updateProduct(product.id, {
+        firestoreService.updateProduct(user.uid, product.id, {
           stock: newTotalStock,
           cost: newAverageCost,
         })
@@ -400,7 +421,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     
-    firestoreService.deleteStockEntry(id)
+    firestoreService.deleteStockEntry(user.uid, id)
       .then(() => {
         setStockEntries(prev => prev.filter(e => e.id !== id));
         
@@ -420,7 +441,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
             ? totalRemainingValue / totalRemainingQuantity
             : 0;
           
-          firestoreService.updateProduct(product.id, {
+          firestoreService.updateProduct(user.uid, product.id, {
             stock: newStock,
             cost: newAverageCost,
           })
@@ -509,7 +530,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         setSales(prev => [...prev, newSale]);
         
         // Update product stock
-        firestoreService.updateProduct(product.id, {
+        firestoreService.updateProduct(user.uid, product.id, {
           stock: product.stock - sale.quantity,
         })
           .then(() => {
@@ -564,31 +585,38 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     
-    firestoreService.deleteSale(id)
+    firestoreService.deleteSale(user.uid, id)
       .then(() => {
         setSales(prev => prev.filter(s => s.id !== id));
         
         // Restore product stock
-        firestoreService.updateProduct(
-          products.find(p => p.sku === sale.sku)?.id || '',
-          { stock: (products.find(p => p.sku === sale.sku)?.stock || 0) + sale.quantity }
-        )
+        const product = products.find(p => p.sku === sale.sku);
+        if (product) {
+          firestoreService.updateProduct(
+            user.uid,
+            product.id,
+            { stock: product.stock + sale.quantity }
+          )
           .then(() => {
-            setProducts(prev => prev.map(p => 
-              p.sku === sale.sku
-                ? { ...p, stock: p.stock + sale.quantity, updatedAt: new Date() }
-                : p
-            ));
-            toast({
-              title: "Sucesso",
-              description: "Venda excluída e estoque restaurado",
+              setProducts(prev => prev.map(p => 
+                p.sku === sale.sku
+                  ? { ...p, stock: p.stock + sale.quantity, updatedAt: new Date() }
+                  : p
+              ));
+              toast({
+                title: "Sucesso",
+                description: "Venda excluída e estoque restaurado",
+              });
+            })
+            .catch(err => {
+              console.error(err);
+              toast({
+                title: "Erro",
+                description: "Falha ao restaurar estoque",
+                variant: "destructive",
+              });
             });
-          })
-          .catch(err => {
-            console.error(err);
-            toast({
-              title: "Erro",
-              description: "Falha ao restaurar estoque",
+        }
               variant: "destructive",
             });
           });
