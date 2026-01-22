@@ -34,7 +34,7 @@ export function RegisterForm() {
     setIsLoading(true);
     try {
       await register(email, password);
-      navigate('/dashboard');
+      navigate('/');
     } catch (err) {
       console.error(err);
     } finally {
