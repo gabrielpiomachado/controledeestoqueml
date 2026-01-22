@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, 
   Package, 
@@ -6,10 +6,13 @@ import {
   ShoppingCart,
   Calculator,
   Menu,
-  X
+  X,
+  LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -21,7 +24,22 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuthContext();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      navigate('/login');
+    } catch (err) {
+      console.error('Erro ao fazer logout:', err);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <>
@@ -80,12 +98,25 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border p-4">
+        <div className="border-t border-sidebar-border p-4 space-y-3">
           <div className="rounded-lg bg-sidebar-accent/50 p-3">
-            <p className="text-xs text-sidebar-muted">
+            <p className="text-xs font-medium text-sidebar-foreground">
+              {user?.email}
+            </p>
+            <p className="text-xs text-sidebar-muted mt-1">
               Dados salvos localmente
             </p>
           </div>
+          
+          <Button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            variant="outline"
+            className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <LogOut className="h-4 w-4" />
+            {isLoggingOut ? 'Deslogando...' : 'Sair'}
+          </Button>
         </div>
       </aside>
     </>
